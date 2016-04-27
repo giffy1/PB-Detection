@@ -96,6 +96,7 @@ public class ReadAccel extends AppCompatActivity {
             public void onBeanDiscovered(Bean bean, int rssi) {
                 beans.add(bean);
                 Log.v(BEAN_TAG, "Discovered bean!");
+                Log.v(BEAN_TAG, "Size: " + beans.size());
             }
 
             @Override
