@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- From: file:/C:/Users/Tommy/Documents/GitHub/sensortag-20-android/sensortag20/BleSensorTag/src/main/res/values/strings.xml -->
+    <!-- From: file:/C:/Users/Tommy/Documents/GitHub/PB-Detection/sensortag20/BleSensorTag/src/main/res/values/strings.xml -->
     <eat-comment/>
     <string-array name="cloud_config_dialog_cloud_services_array">
         <item>IBM IoT Quick Start</item>
@@ -90,7 +90,7 @@
     <string name="unitRH">%rH\n</string>
     <string name="unitT3">uT\nuT\nuT\n</string>
     <string name="xyz3">x:\ny:\nz:\n</string>
-    <!-- From: file:/C:/Users/Tommy/Documents/GitHub/sensortag-20-android/sensortag20/BleSensorTag/src/main/res/values/styles.xml -->
+    <!-- From: file:/C:/Users/Tommy/Documents/GitHub/PB-Detection/sensortag20/BleSensorTag/src/main/res/values/styles.xml -->
     <eat-comment/>
     <style name="AppBaseTheme" parent="android:Theme.Light">
         <!--
