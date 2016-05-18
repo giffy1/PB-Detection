@@ -28,4 +28,4 @@
         android:onClick="onConfirm"
         android:text="@string/btn_txt_confirm" />
 
-</LinearLayout><!-- From: file:/C:/Users/Tommy/Documents/GitHub/PB-Detection/sensortag20/BleSensorTag/src/main/res/layout/activity_file.xml -->
+</LinearLayout><!-- From: file:/Users/snoran/pill-detection/sensortag20/BleSensorTag/src/main/res/layout/activity_file.xml -->

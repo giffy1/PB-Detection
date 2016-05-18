@@ -140,4 +140,4 @@
         android:onClick="onStart"
         android:text="@string/start_prog" />
 
-</LinearLayout><!-- From: file:/C:/Users/Tommy/Documents/GitHub/PB-Detection/sensortag20/BleSensorTag/src/main/res/layout/activity_fwupdate.xml -->
+</LinearLayout><!-- From: file:/Users/snoran/pill-detection/sensortag20/BleSensorTag/src/main/res/layout/activity_fwupdate.xml -->

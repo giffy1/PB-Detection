@@ -21,4 +21,4 @@
         android:icon="@drawable/ic_action_about" 
         android:title="@string/about"/>
 
-</menu><!-- From: file:/C:/Users/Tommy/Documents/GitHub/PB-Detection/sensortag20/BleSensorTag/src/main/res/menu/device_activity_actions.xml -->
+</menu><!-- From: file:/Users/snoran/pill-detection/sensortag20/BleSensorTag/src/main/res/menu/device_activity_actions.xml -->

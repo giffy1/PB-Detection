@@ -46,4 +46,4 @@
         android:layout_margin="0dp"
         android:text="@android:string/ok" />
 
-</LinearLayout><!-- From: file:/C:/Users/Tommy/Documents/GitHub/PB-Detection/sensortag20/BleSensorTag/src/main/res/layout/dialog_about.xml -->
+</LinearLayout><!-- From: file:/Users/snoran/pill-detection/sensortag20/BleSensorTag/src/main/res/layout/dialog_about.xml -->
