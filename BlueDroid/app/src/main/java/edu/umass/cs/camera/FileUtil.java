@@ -41,13 +41,12 @@ class FileUtil {
      * @param filename file name (without extension!)
      * @return the file writer for the particular filename
      */
-    public static BufferedWriter getFileWriter(String filename){
-        File rootDir = getStorageLocation();
+    public static BufferedWriter getFileWriter(String filename, File directory){
         String fullFileName = filename+CSV_EXTENSION;
 
         BufferedWriter out = null;
         try{
-            out = new BufferedWriter(new FileWriter(new File(rootDir,fullFileName)));
+            out = new BufferedWriter(new FileWriter(new File(directory,fullFileName)));
         }catch(IOException e){
             e.printStackTrace();
         }
@@ -81,21 +80,20 @@ class FileUtil {
     }
 
     /**
-     * Deletes all the data from the log directory
+     * Deletes all the data from the given directory (be careful!!)
      * @return true if successfully deleted
      */
-    public static boolean deleteData(){
+    public static boolean deleteData(File directory){
         boolean deleted = false;
-        File root = getStorageLocation();
-        if(root!=null){
-            File files[] = root.listFiles();
+        if(directory!=null){
+            File files[] = directory.listFiles();
             if(files!=null){
                 for(File file : files) {
                     if (!file.delete())
                         Log.d(TAG, "Deleting file failed: " + file.getName());
                 }
             }
-            deleted = root.delete();
+            deleted = directory.delete();
         }
         return deleted;
     }
