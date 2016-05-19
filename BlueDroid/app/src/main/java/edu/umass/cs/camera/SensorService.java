@@ -77,6 +77,8 @@ public class SensorService extends Service {
     private BufferedWriter rssiFileWriter;
 
     private boolean turnOnLedWhileRunning;
+    private boolean enableAccelerometer;
+    private boolean enableRSSI;
 
     /**
      * Handler to handle incoming messages
@@ -114,6 +116,26 @@ public class SensorService extends Service {
                 Bundle b = new Bundle();
                 b.putString(Constants.KEY.STATUS, status);
                 Message msg = Message.obtain(null, Constants.MESSAGE.STATUS);
+                msg.setData(b);
+                mClients.get(i).send(msg);
+            } catch (RemoteException e) {
+                // The client is dead. Remove it from the list; we are going through the list from back to front so this is safe to do inside the loop.
+                mClients.remove(i);
+            }
+        }
+    }
+
+    /**
+     * Sends battery level to all clients, removing any inactive clients if necessary.
+     * @param percentage the battery level as a percentage
+     */
+    private void sendBatteryLevelToClients(int percentage) {
+        for (int i=mClients.size()-1; i>=0; i--) {
+            try {
+                // Send message value
+                Bundle b = new Bundle();
+                b.putInt(Constants.KEY.BATTERY_LEVEL, percentage);
+                Message msg = Message.obtain(null, Constants.MESSAGE.BATTERY_LEVEL);
                 msg.setData(b);
                 mClients.get(i).send(msg);
             } catch (RemoteException e) {
@@ -209,6 +231,12 @@ public class SensorService extends Service {
 
         turnOnLedWhileRunning = preferences.getBoolean(Constants.PREFERENCES.LED_NOTIFICATION.KEY,
                 Constants.PREFERENCES.LED_NOTIFICATION.DEFAULT);
+
+        enableAccelerometer = preferences.getBoolean(Constants.PREFERENCES.AVAILABLE_SENSORS.BEAN_ACCELEROMETER.KEY,
+                Constants.PREFERENCES.AVAILABLE_SENSORS.BEAN_ACCELEROMETER.DEFAULT);
+
+        enableRSSI = preferences.getBoolean(Constants.PREFERENCES.AVAILABLE_SENSORS.BEAN_RSSI.KEY,
+                Constants.PREFERENCES.AVAILABLE_SENSORS.BEAN_RSSI.DEFAULT);
     }
 
     //Called when passing in an intent via startService(), i.e. start/stop command
@@ -249,7 +277,7 @@ public class SensorService extends Service {
 
             //TODO: Catch the LED change in the Arduino script and reply, then unregister in a callback
             try {
-                Thread.sleep(50);
+                Thread.sleep(25);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
@@ -305,50 +333,57 @@ public class SensorService extends Service {
                         bean.readBatteryLevel(new Callback<BatteryLevel>() {
                             @Override
                             public void onResult(BatteryLevel batteryLevel) {
-                                sendStatusToClients(String.format("Battery level for Bean %s: %s", bean.getDevice().getAddress(), batteryLevel.toString()));
+                                sendBatteryLevelToClients(batteryLevel.getPercentage());
+                                //sendStatusToClients(String.format("Battery level for Bean %s: %s", bean.getDevice().getAddress(), batteryLevel.getPercentage()));
                             }
                         });
 
                         HandlerThread hThread = new HandlerThread("HandlerThread");
                         hThread.start();
 
-                        handlerAccelerometer = new Handler(hThread.getLooper());
-                        final int delayAccelerometer = (int)(1000.0 / accelerometerSamplingRate); // milliseconds
-                        readAccelerometerTask = new Runnable() {
-                            @Override
-                            public void run() {
-                                bean.readAcceleration(new Callback<Acceleration>() {
-                                    @Override
-                                    public void onResult(Acceleration acceleration) {
-                                        long time = System.currentTimeMillis();
-                                        double x = acceleration.x();
-                                        double y = acceleration.y();
-                                        double z = acceleration.z();
-                                        sendAccelerometerValuesToClients(x, y, z);
-                                        String line = String.format("%d, %f, %f, %f", time, x, y, z);
-                                        synchronized (accelerometerFileWriter) {
-                                            FileUtil.writeToFile(line, accelerometerFileWriter);
-                                        }
-                                    }
-                                });
+                        if (enableAccelerometer) {
 
-                                handlerAccelerometer.postDelayed(this, delayAccelerometer);
-                            }
-                        };
-                        handlerAccelerometer.postDelayed(readAccelerometerTask, delayAccelerometer);
+                            handlerAccelerometer = new Handler(hThread.getLooper());
+                            final int delayAccelerometer = (int) (1000.0 / accelerometerSamplingRate); // milliseconds
+                            readAccelerometerTask = new Runnable() {
+                                @Override
+                                public void run() {
+                                    bean.readAcceleration(new Callback<Acceleration>() {
+                                        @Override
+                                        public void onResult(Acceleration acceleration) {
+                                            long time = System.currentTimeMillis();
+                                            double x = acceleration.x();
+                                            double y = acceleration.y();
+                                            double z = acceleration.z();
+                                            sendAccelerometerValuesToClients(x, y, z);
+                                            String line = String.format("%d, %f, %f, %f", time, x, y, z);
+                                            synchronized (accelerometerFileWriter) {
+                                                FileUtil.writeToFile(line, accelerometerFileWriter);
+                                            }
+                                        }
+                                    });
+
+                                    handlerAccelerometer.postDelayed(this, delayAccelerometer);
+                                }
+                            };
+                            handlerAccelerometer.postDelayed(readAccelerometerTask, delayAccelerometer);
+                        }
 
                         sendMessageSensorStarted();
 
-//                        handlerRSSI = new Handler(hThread.getLooper());
-//                        final int delayRSSI = (int)(1000.0 / rssiSamplingRate); // milliseconds
-//                        readRSSITask = new Runnable() {
-//                            @Override
-//                            public void run() {
-//                                bean.readRemoteRssi();
-//                                handlerRSSI.postDelayed(this, delayRSSI);
-//                            }
-//                        };
-//                        handlerRSSI.postDelayed(readRSSITask, delayRSSI);
+                        //TODO: Problem running both accelerometer and rssi
+                        if (enableRSSI) {
+                            handlerRSSI = new Handler(hThread.getLooper());
+                            final int delayRSSI = (int)(1000.0 / rssiSamplingRate); // milliseconds
+                            readRSSITask = new Runnable() {
+                                @Override
+                                public void run() {
+                                    bean.readRemoteRssi();
+                                    handlerRSSI.postDelayed(this, delayRSSI);
+                                }
+                            };
+                            handlerRSSI.postDelayed(readRSSITask, delayRSSI);
+                        }
 
                         //show notification
                         Intent notifyIntent = new Intent(SensorService.this, SensorService.class);
@@ -430,13 +465,15 @@ public class SensorService extends Service {
      */
     public void unregisterSensors(){
         for (Bean bean : beans){
-            bean.disconnect();
+            if (bean.isConnected())
+                bean.disconnect();
         }
     }
 
     public void turnOffLed(){
         for (Bean bean : beans){
-            bean.setLed(LedColor.create(0, 0, 0));
+            if (bean.isConnected())
+                bean.setLed(LedColor.create(0, 0, 0));
         }
     }
 }
