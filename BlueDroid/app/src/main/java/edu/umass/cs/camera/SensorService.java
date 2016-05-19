@@ -4,6 +4,7 @@ import android.app.Notification;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
@@ -13,6 +14,7 @@ import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.preference.PreferenceManager;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
@@ -28,6 +30,7 @@ import com.punchthrough.bean.sdk.message.DeviceInfo;
 import com.punchthrough.bean.sdk.message.ScratchBank;
 
 import java.io.BufferedWriter;
+import java.io.File;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
@@ -63,6 +66,14 @@ public class SensorService extends Service {
 
     /** indicates whether the sensor service is running or not */
     private static boolean isRunning = false;
+
+    /** Used to access user preferences shared across different application components **/
+    SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+
+    private int accelerometerSamplingRate;
+    private int rssiSamplingRate;
+    private BufferedWriter accelerometerFileWriter;
+    private BufferedWriter rssiFileWriter;
 
     /**
      * Handler to handle incoming messages
@@ -140,21 +151,6 @@ public class SensorService extends Service {
         return isRunning;
     }
 
-    private interface FILE_TAG {
-        String ACCELEROMETER = "ACCEL";
-        String RSSI = "RSSI";
-    }
-
-    private interface WRITER {
-        BufferedWriter ACCELEROMETER = FileUtil.getFileWriter(FILE_TAG.ACCELEROMETER);
-        BufferedWriter RSSI = FileUtil.getFileWriter(FILE_TAG.RSSI);
-    }
-
-    private interface SAMPLING_RATE {
-        int ACCELEROMETER = 10;
-        int RSSI = 60;
-    }
-
     /** list of available LightBlue Bean sensors **/
     private final List<Bean> beans = new ArrayList<>();
 
@@ -165,10 +161,36 @@ public class SensorService extends Service {
         super.onDestroy();
     }
 
+    /**
+     * Load all relevant shared preferences; these include the accelerometer and RSSI sampling rates,
+     * the filenames and the directory where data should be written.
+     */
+    private void loadSharedPreferences(){
+        accelerometerSamplingRate = preferences.getInt(Constants.PREFERENCES.SAMPLING_RATE.ACCELEROMETER.KEY,
+                Constants.PREFERENCES.SAMPLING_RATE.ACCELEROMETER.DEFAULT);
+        rssiSamplingRate = preferences.getInt(Constants.PREFERENCES.SAMPLING_RATE.RSSI.KEY,
+                Constants.PREFERENCES.SAMPLING_RATE.RSSI.DEFAULT);
+
+        String accelerometerFileName = preferences.getString(Constants.PREFERENCES.FILE_NAME.ACCELEROMETER.KEY,
+                Constants.PREFERENCES.FILE_NAME.ACCELEROMETER.DEFAULT);
+        String rssiFileName = preferences.getString(Constants.PREFERENCES.FILE_NAME.RSSI.KEY,
+                Constants.PREFERENCES.FILE_NAME.RSSI.DEFAULT);
+
+        String path = preferences.getString(Constants.PREFERENCES.SAVE_DIRECTORY.KEY,
+                Constants.PREFERENCES.SAVE_DIRECTORY.DEFAULT);
+
+        assert path != null;
+        File directory = new File(path);
+
+        accelerometerFileWriter = FileUtil.getFileWriter(accelerometerFileName, directory);
+        rssiFileWriter = FileUtil.getFileWriter(rssiFileName, directory);
+    }
+
     //Called when passing in an intent via startService(), i.e. start/stop command
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent.getAction().equals(Constants.ACTION.START_SERVICE)) {
+            loadSharedPreferences();
             registerSensors();
         } else if (intent.getAction().equals(Constants.ACTION.NOTIFY)) {
 
@@ -202,8 +224,8 @@ public class SensorService extends Service {
             unregisterSensors();
 
             //close and flush the file writer. Flush ensures that the data is written to the file
-            FileUtil.closeWriter(WRITER.ACCELEROMETER);
-            FileUtil.closeWriter(WRITER.RSSI);
+            FileUtil.closeWriter(accelerometerFileWriter);
+            FileUtil.closeWriter(rssiFileWriter);
 
             //remove the service from the foreground
             stopForeground(true);
@@ -248,7 +270,7 @@ public class SensorService extends Service {
                         hThread.start();
 
                         final Handler handlerAccelerometer = new Handler(hThread.getLooper());
-                        final int delayAccelerometer = (int)(1000.0 / SAMPLING_RATE.ACCELEROMETER); // milliseconds
+                        final int delayAccelerometer = (int)(1000.0 / accelerometerSamplingRate); // milliseconds
                         Runnable readAccelerometerTask = new Runnable() {
                             @Override
                             public void run() {
@@ -261,8 +283,8 @@ public class SensorService extends Service {
                                         double z = acceleration.z();
                                         sendAccelerometerValuesToClients(x, y, z);
                                         String line = String.format("%d, %f, %f, %f", time, x, y, z);
-                                        synchronized (WRITER.ACCELEROMETER) {
-                                            FileUtil.writeToFile(line, WRITER.ACCELEROMETER);
+                                        synchronized (accelerometerFileWriter) {
+                                            FileUtil.writeToFile(line, accelerometerFileWriter);
                                         }
                                     }
                                 });
@@ -273,7 +295,7 @@ public class SensorService extends Service {
                         handlerAccelerometer.postDelayed(readAccelerometerTask, delayAccelerometer);
 
                         final Handler handlerRSSI = new Handler(hThread.getLooper());
-                        final int delayRSSI = (int)(1000.0 / SAMPLING_RATE.RSSI); // milliseconds
+                        final int delayRSSI = (int)(1000.0 / rssiSamplingRate); // milliseconds
                         Runnable readRSSITask = new Runnable() {
                             @Override
                             public void run() {
@@ -281,7 +303,7 @@ public class SensorService extends Service {
                                 handlerRSSI.postDelayed(this, delayRSSI);
                             }
                         };
-                        handlerAccelerometer.postDelayed(readRSSITask, delayRSSI);
+                        handlerRSSI.postDelayed(readRSSITask, delayRSSI);
 
                         //show notification
                         Intent notifyIntent = new Intent(SensorService.this, SensorService.class);
@@ -322,8 +344,8 @@ public class SensorService extends Service {
                     public void onReadRemoteRssi(int r) {
                         long time = System.currentTimeMillis();
                         String line = String.format("%d, %d", time, r);
-                        synchronized (WRITER.RSSI) {
-                            FileUtil.writeToFile(line, WRITER.RSSI);
+                        synchronized (rssiFileWriter) {
+                            FileUtil.writeToFile(line, rssiFileWriter);
                         }
                         sendStatusToClients(String.format("RSSI data for Bean %s: %s", bean.getDevice().getAddress(), String.valueOf(r)));
                     }
