@@ -27,6 +27,7 @@ import com.punchthrough.bean.sdk.message.BatteryLevel;
 import com.punchthrough.bean.sdk.message.BeanError;
 import com.punchthrough.bean.sdk.message.Callback;
 import com.punchthrough.bean.sdk.message.DeviceInfo;
+import com.punchthrough.bean.sdk.message.LedColor;
 import com.punchthrough.bean.sdk.message.ScratchBank;
 
 import java.io.BufferedWriter;
@@ -68,12 +69,14 @@ public class SensorService extends Service {
     private static boolean isRunning = false;
 
     /** Used to access user preferences shared across different application components **/
-    SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+    SharedPreferences preferences;
 
     private int accelerometerSamplingRate;
     private int rssiSamplingRate;
     private BufferedWriter accelerometerFileWriter;
     private BufferedWriter rssiFileWriter;
+
+    private boolean turnOnLedWhileRunning;
 
     /**
      * Handler to handle incoming messages
@@ -142,6 +145,24 @@ public class SensorService extends Service {
         }
     }
 
+    /**
+     * Sends a xyz accelerometer readings to listening clients, i.e. main UI
+     */
+    private void sendMessageSensorStarted() {
+        for (int i=mClients.size()-1; i>=0; i--) {
+            try {
+                // Send message value
+                Bundle b = new Bundle();
+                Message msg = Message.obtain(null, Constants.MESSAGE.SENSOR_STARTED);
+                msg.setData(b);
+                mClients.get(i).send(msg);
+            } catch (RemoteException e) {
+                // The client is dead. Remove it from the list; we are going through the list from back to front so this is safe to do inside the loop.
+                mClients.remove(i);
+            }
+        }
+    }
+
     @Override
     public IBinder onBind(Intent intent) {
         return mMessenger.getBinder();
@@ -166,6 +187,7 @@ public class SensorService extends Service {
      * the filenames and the directory where data should be written.
      */
     private void loadSharedPreferences(){
+        preferences = PreferenceManager.getDefaultSharedPreferences(this);
         accelerometerSamplingRate = preferences.getInt(Constants.PREFERENCES.SAMPLING_RATE.ACCELEROMETER.KEY,
                 Constants.PREFERENCES.SAMPLING_RATE.ACCELEROMETER.DEFAULT);
         rssiSamplingRate = preferences.getInt(Constants.PREFERENCES.SAMPLING_RATE.RSSI.KEY,
@@ -184,6 +206,9 @@ public class SensorService extends Service {
 
         accelerometerFileWriter = FileUtil.getFileWriter(accelerometerFileName, directory);
         rssiFileWriter = FileUtil.getFileWriter(rssiFileName, directory);
+
+        turnOnLedWhileRunning = preferences.getBoolean(Constants.PREFERENCES.LED_NOTIFICATION.KEY,
+                Constants.PREFERENCES.LED_NOTIFICATION.DEFAULT);
     }
 
     //Called when passing in an intent via startService(), i.e. start/stop command
@@ -220,6 +245,17 @@ public class SensorService extends Service {
         } else if (intent.getAction().equals(Constants.ACTION.STOP_SERVICE)) {
             isRunning = false;
 
+            turnOffLed();
+
+            //TODO: Catch the LED change in the Arduino script and reply, then unregister in a callback
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            BeanManager.getInstance().cancelDiscovery();
+
             //unregister the accelerometer sensor
             unregisterSensors();
 
@@ -232,6 +268,7 @@ public class SensorService extends Service {
 
             //end the service
             stopSelf();
+
         }
 
         return START_STICKY;
@@ -241,7 +278,7 @@ public class SensorService extends Service {
      * Register available Light Blue Bean sensors over BLE
      */
     private void registerSensors() {
-        BeanDiscoveryListener listener = new BeanDiscoveryListener() {
+        final BeanDiscoveryListener listener = new BeanDiscoveryListener() {
             @Override
             public void onBeanDiscovered(final Bean bean, int rssi) {
                 beans.add(bean);
@@ -250,8 +287,14 @@ public class SensorService extends Service {
                 sendStatusToClients(String.format("Bean %s has a signal strength of %s RSSI.", bean.getDevice().getAddress(), String.valueOf(rssi)));
 
                 final BeanListener beanListener = new BeanListener() {
+
+                    private Handler handlerAccelerometer, handlerRSSI;
+                    private Runnable readAccelerometerTask, readRSSITask;
+
                     @Override
                     public void onConnected() {
+                        if (turnOnLedWhileRunning)
+                            bean.setLed(LedColor.create(0, 255, 255));
                         sendStatusToClients(String.format("Connected to bean %s.", bean.getDevice().getAddress()));
                         bean.readDeviceInfo(new Callback<DeviceInfo>() {
                             @Override
@@ -269,9 +312,9 @@ public class SensorService extends Service {
                         HandlerThread hThread = new HandlerThread("HandlerThread");
                         hThread.start();
 
-                        final Handler handlerAccelerometer = new Handler(hThread.getLooper());
+                        handlerAccelerometer = new Handler(hThread.getLooper());
                         final int delayAccelerometer = (int)(1000.0 / accelerometerSamplingRate); // milliseconds
-                        Runnable readAccelerometerTask = new Runnable() {
+                        readAccelerometerTask = new Runnable() {
                             @Override
                             public void run() {
                                 bean.readAcceleration(new Callback<Acceleration>() {
@@ -294,16 +337,18 @@ public class SensorService extends Service {
                         };
                         handlerAccelerometer.postDelayed(readAccelerometerTask, delayAccelerometer);
 
-                        final Handler handlerRSSI = new Handler(hThread.getLooper());
-                        final int delayRSSI = (int)(1000.0 / rssiSamplingRate); // milliseconds
-                        Runnable readRSSITask = new Runnable() {
-                            @Override
-                            public void run() {
-                                bean.readRemoteRssi();
-                                handlerRSSI.postDelayed(this, delayRSSI);
-                            }
-                        };
-                        handlerRSSI.postDelayed(readRSSITask, delayRSSI);
+                        sendMessageSensorStarted();
+
+//                        handlerRSSI = new Handler(hThread.getLooper());
+//                        final int delayRSSI = (int)(1000.0 / rssiSamplingRate); // milliseconds
+//                        readRSSITask = new Runnable() {
+//                            @Override
+//                            public void run() {
+//                                bean.readRemoteRssi();
+//                                handlerRSSI.postDelayed(this, delayRSSI);
+//                            }
+//                        };
+//                        handlerRSSI.postDelayed(readRSSITask, delayRSSI);
 
                         //show notification
                         Intent notifyIntent = new Intent(SensorService.this, SensorService.class);
@@ -321,18 +366,24 @@ public class SensorService extends Service {
 
                     @Override
                     public void onDisconnected() {
+                        if (handlerAccelerometer != null && readAccelerometerTask != null) {
+                            handlerAccelerometer.removeCallbacksAndMessages(readAccelerometerTask);
+                        }
+                        if (handlerRSSI != null && readRSSITask != null) {
+                            handlerRSSI.removeCallbacksAndMessages(readRSSITask);
+                        }
                         sendStatusToClients(String.format("Disconnected from bean %s.", bean.getDevice().getAddress()));
                         beans.remove(bean);
                     }
 
                     @Override
                     public void onSerialMessageReceived(byte[] bytes) {
-
+                        Log.d(TAG, "serial message");
                     }
 
                     @Override
                     public void onScratchValueChanged(ScratchBank scratchBank, byte[] bytes) {
-
+                        Log.d(TAG, "scratch value changed");
                     }
 
                     @Override
@@ -380,6 +431,12 @@ public class SensorService extends Service {
     public void unregisterSensors(){
         for (Bean bean : beans){
             bean.disconnect();
+        }
+    }
+
+    public void turnOffLed(){
+        for (Bean bean : beans){
+            bean.setLed(LedColor.create(0, 0, 0));
         }
     }
 }
