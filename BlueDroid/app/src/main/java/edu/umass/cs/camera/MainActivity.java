@@ -6,6 +6,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.media.MediaRecorder;
 import android.os.AsyncTask;
@@ -15,6 +16,7 @@ import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
@@ -22,6 +24,7 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
@@ -72,6 +75,9 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
     /** whether currently recording video **/
     private boolean recording = false;
 
+    /** whether the application should record video during data collection **/
+    private boolean record_video = false;
+
     /** Permission identifier for the set of required permissions **/
     private static final int VIDEO_BLE_PERMISSION_REQUEST = 1;
 
@@ -98,6 +104,9 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
     private BandPendingResult<ConnectionState> pendingResult;
 
     private ArrayList<BandAccelerometerEvent> accelReadings;
+
+    /** Used to access user preferences shared across different application components **/
+    SharedPreferences preferences;
 
     /**
      * Messenger service for exchanging messages with the background service
@@ -127,6 +136,7 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
                 case Constants.MESSAGE.SENSOR_STARTED:
                 {
                     mMainActivity.get().updateStatus("sensor started.");
+                    mMainActivity.get().onSensorStarted();
                     break;
                 }
                 case Constants.MESSAGE.SENSOR_STOPPED:
@@ -294,15 +304,22 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
                 // all permissions granted:
                 updateStatus("Permission Granted.");
                 startSensorService();
-                startVideoService();
             }
         }
+    }
+
+    private void loadPreferences(){
+        preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        record_video = preferences.getBoolean(Constants.PREFERENCES.AVAILABLE_SENSORS.VIDEO.KEY,
+                Constants.PREFERENCES.AVAILABLE_SENSORS.VIDEO.DEFAULT);
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_read_accel);
+
+        loadPreferences();
 
         tvStatus = (TextView) findViewById(R.id.status);
         tvStatus.setText(getString(R.string.initial_status));
@@ -316,12 +333,16 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (!hasPermissionsGranted(VIDEO_BLE_PERMISSIONS) || !hasPermissionsGranted(VIDEO_BLE_PERMISSIONS)){
-                    ActivityCompat.requestPermissions(MainActivity.this, VIDEO_BLE_PERMISSIONS, VIDEO_BLE_PERMISSION_REQUEST);
-                    return;
+                if (!mIsBound) {
+                    doBindService();
                 }
-                startSensorService();
-                //startVideoService();
+                if (mIsBound) {
+                    if (!hasPermissionsGranted(VIDEO_BLE_PERMISSIONS) || !hasPermissionsGranted(VIDEO_BLE_PERMISSIONS)) {
+                        ActivityCompat.requestPermissions(MainActivity.this, VIDEO_BLE_PERMISSIONS, VIDEO_BLE_PERMISSION_REQUEST);
+                        return;
+                    }
+                    startSensorService();
+                }
             }
         });
 
@@ -329,7 +350,7 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         stopButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if(!mIsBound) {
+                if (!mIsBound) {
                     doBindService();
                 }
                 if (mIsBound) {
@@ -342,29 +363,18 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
                     //send intent to the sensor service
                     startService(stopServiceIntent);
 
-                    //stopVideoService();
+                    stopVideoService();
                 }
-
-                //TODO: notify user
-//                mStatusTextView.setText(Constants.STRINGS.STOP_MESSAGE);
-//
-//                //enable/disable fields appropriately
-//                mDeleteDataButton.setEnabled(true);
-//                mLabelStartButton.setEnabled(false);
-//                mLabelStopButton.setEnabled(false);
             }
         });
 
-//        recorder = new MediaRecorder();
-//        initRecorder();
-//
-//        SurfaceView cameraView = (SurfaceView) findViewById(R.id.surface_camera);
-//        holder = cameraView.getHolder();
-//        holder.addCallback(this);
-//        holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+        recorder = new MediaRecorder();
+        initRecorder();
 
-        //cameraView.setClickable(true);
-        //cameraView.setOnClickListener(this);
+        SurfaceView cameraView = (SurfaceView) findViewById(R.id.surface_camera);
+        holder = cameraView.getHolder();
+        holder.addCallback(this);
+        holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS); //not needed since API 11
     }
 
     /**
@@ -384,22 +394,13 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
             //start sensor service
             startService(startServiceIntent);
         }
-
-        //TODO: notify user
-//                mStatusTextView.setText(Constants.STRINGS.START_MESSAGE);
-//
-//                //enabled/disable fields appropriately
-//                mDeleteDataButton.setEnabled(false);
-//                mLabelStartButton.setEnabled(true);
-//                mLabelStopButton.setEnabled(true);
     }
 
-    /**
-     * Starts video recording
-     */
-    private void startVideoService(){
-        recording = true;
-        recorder.start();
+    private void onSensorStarted(){
+        if (record_video) {
+            recording = true;
+            recorder.start();
+        }
     }
 
     /**
@@ -412,8 +413,8 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
             //Toast.makeText(getApplicationContext(), "Recording stopped", Toast.LENGTH_LONG).show();
 
             // Let's initRecorder so we can record again
-            initRecorder();
-            prepareRecorder();
+            //initRecorder();
+            //prepareRecorder();
         }
     }
 
@@ -425,15 +426,18 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         recorder.setVideoSource(MediaRecorder.VideoSource.DEFAULT);
         recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
         //recorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH));
-        try {
-            recorder.setOutputFile(getVideoFilePath(this));
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
+        String directory = preferences.getString(Constants.PREFERENCES.SAVE_DIRECTORY.KEY,
+                Constants.PREFERENCES.SAVE_DIRECTORY.DEFAULT);
+        File f = new File(directory);
+        if(!f.exists())
+            if (!f.mkdir()){
+                Log.w(TAG, "Failed to create directory! It may already exist");
+            }
+        recorder.setOutputFile(new File(directory, "VIDEO.mp4").getAbsolutePath());
         recorder.setVideoEncodingBitRate(10000000);
         recorder.setVideoFrameRate(30);
-        recorder.setMaxDuration(50000); // 50 seconds
-        recorder.setMaxFileSize(5000000); // Approximately 5 megabytes
+        //recorder.setMaxDuration(50000); // 50 seconds
+        //recorder.setMaxFileSize(5000000); // Approximately 5 megabytes
         recorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
 
         //recorder.setVideoSize(mVideoSize.getWidth(), mVideoSize.getHeight());
@@ -456,16 +460,8 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         finish();
     }
 
-    private String getVideoFilePath(Context context) throws FileNotFoundException {
-        File file = context.getExternalFilesDir(null);
-        if (file == null)
-            throw new FileNotFoundException();
-        return file.getAbsolutePath() + "/" + System.currentTimeMillis() + ".mp4";
-    }
-
     private void prepareRecorder() {
         recorder.setPreviewDisplay(holder.getSurface());
-        //recorder.setPreviewDisplay(view.getHolder());
 
         try {
             recorder.prepare();
