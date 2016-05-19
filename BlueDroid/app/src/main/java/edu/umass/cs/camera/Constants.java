@@ -1,5 +1,9 @@
 package edu.umass.cs.camera;
 
+import android.os.Environment;
+
+import java.io.File;
+
 /**
  * The Constants class stores various constants that are used across various classes, including
  * identifiers for intent actions used when the main UI communicates with the sensor service; the
@@ -36,6 +40,34 @@ class Constants {
         String DELETE_DATA_CONFIRMATION_PROMPT = "Are you sure you want to delete the gestures data?";
         String DELETE_DATA_POSITIVE_MSG = "Yes, Delete Data";
         String DELETE_DATA_NEGATIVE_MSG = "No, I mis-clicked";
+    }
+
+    public interface PREFERENCES {
+        interface SAMPLING_RATE {
+            interface ACCELEROMETER {
+                String KEY = "accelerometer-sampling-rate";
+                int DEFAULT = 60;
+            }
+            interface RSSI {
+                String KEY = "rssi-sampling-rate";
+                int DEFAULT = 60;
+            }
+        }
+        interface FILE_NAME {
+            interface ACCELEROMETER {
+                String KEY = "accelerometer-file-name";
+                String DEFAULT = "accelerometer";
+            }
+            interface RSSI {
+                String KEY = "rssi";
+                String DEFAULT = "";
+            }
+        }
+        interface SAVE_DIRECTORY {
+            String KEY = "save-directory";
+            String DEFAULT_DIRECTORY_NAME = "bluedroid";
+            String DEFAULT = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), DEFAULT_DIRECTORY_NAME).getAbsolutePath();
+        }
     }
 
     /** Keys to identify key-value data sent to/from the sensor service */
