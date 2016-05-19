@@ -74,7 +74,7 @@ class FileUtil {
         try{
             out.flush();
             out.close();
-        } catch(IOException e){
+        } catch(IOException | NullPointerException e){
             e.printStackTrace();
         }
     }
