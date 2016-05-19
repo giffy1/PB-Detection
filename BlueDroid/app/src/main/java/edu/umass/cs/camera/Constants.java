@@ -68,6 +68,32 @@ class Constants {
             String DEFAULT_DIRECTORY_NAME = "bluedroid";
             String DEFAULT = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), DEFAULT_DIRECTORY_NAME).getAbsolutePath();
         }
+        interface LED_NOTIFICATION{
+            String KEY = "use-led-while-running";
+            boolean DEFAULT = true;
+        }
+        interface AVAILABLE_SENSORS {
+            interface VIDEO {
+                String KEY = "is-video-on";
+                boolean DEFAULT = false;
+            }
+            interface BEAN_ACCELEROMETER {
+                String KEY = "is-bean-accelerometer-on";
+                boolean DEFAULT = true;
+            }
+            interface BEAN_RSSI {
+                String KEY = "is-bean-rssi-on";
+                boolean DEFAULT = true;
+            }
+            interface BAND_ACCELEROMETER {
+                String KEY = "is-band-accelerometer-on";
+                boolean DEFAULT = true;
+            }
+            interface BAND_GYROSCOPE {
+                String KEY = "is-band-gyroscope-on";
+                boolean DEFAULT = true;
+            }
+        }
     }
 
     /** Keys to identify key-value data sent to/from the sensor service */
