@@ -70,7 +70,7 @@ class Constants {
         }
         interface LED_NOTIFICATION{
             String KEY = "use-led-while-running";
-            boolean DEFAULT = true;
+            boolean DEFAULT = false;
         }
         interface AVAILABLE_SENSORS {
             interface VIDEO {
@@ -112,6 +112,7 @@ class Constants {
     public interface KEY {
         String STATUS = "edu.umass.cs.mygestures.key.status";
         String ACCELEROMETER_READING = "edu.umass.cs.mygestures.key.accelerometer-reading";
+        String BATTERY_LEVEL = "edu.umass.cs.mygestures.key.battery-level";
     }
 
     public interface MESSAGE {
@@ -121,6 +122,7 @@ class Constants {
         int SENSOR_STOPPED = 3;
         int STATUS = 4;
         int ACCELEROMETER_READING = 5;
+        int BATTERY_LEVEL = 6;
     }
 
     /** Timestamp-relevant constants */
