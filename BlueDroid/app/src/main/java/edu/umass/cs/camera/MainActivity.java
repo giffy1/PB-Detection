@@ -8,6 +8,10 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.drawable.BitmapDrawable;
 import android.media.MediaRecorder;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -27,6 +31,7 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -45,6 +50,7 @@ import com.microsoft.band.sensors.SampleRate;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
@@ -105,6 +111,8 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
 
     private ArrayList<BandAccelerometerEvent> accelReadings;
 
+    private Bitmap batteryLevelBitmap;
+
     /** Used to access user preferences shared across different application components **/
     SharedPreferences preferences;
 
@@ -152,6 +160,11 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
                 case Constants.MESSAGE.ACCELEROMETER_READING:
                 {
                     mMainActivity.get().updateAccelerometerReading(msg.getData().getDoubleArray(Constants.KEY.ACCELEROMETER_READING));
+                    break;
+                }
+                case Constants.MESSAGE.BATTERY_LEVEL:
+                {
+                    mMainActivity.get().updateBatteryLevel(msg.getData().getInt(Constants.KEY.BATTERY_LEVEL));
                     break;
                 }
                 default:
@@ -268,6 +281,28 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
             }
         });
         Log.d(TAG, status);
+    }
+
+    /**
+     * display the accelerometer readings in the main UI
+     * @param percentage length-3 array of xyz accelerometer readings
+     */
+    private void updateBatteryLevel(final int percentage){
+        if (batteryLevelBitmap == null)
+            batteryLevelBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.ic_battery_image_set);
+        int nImages = 11;
+        int height = batteryLevelBitmap.getHeight();
+        int width = batteryLevelBitmap.getWidth();
+        int width_per_image = width / nImages;
+        int index = (percentage + 5) / (nImages - 1);
+        int x = width_per_image * index;
+        Bitmap batteryLevelSingleBitmap = Bitmap.createBitmap(batteryLevelBitmap, x, 0, width_per_image, height);
+
+        Resources res = getResources();
+        BitmapDrawable icon = new BitmapDrawable(res,batteryLevelSingleBitmap);
+        getSupportActionBar().setDisplayShowHomeEnabled(true);
+        getSupportActionBar().setIcon(icon);
+        getSupportActionBar().setTitle("");
     }
 
     /**
