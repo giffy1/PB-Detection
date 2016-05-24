@@ -19,100 +19,46 @@ class Constants {
      * @see MainActivity
      * @see android.content.Intent */
     public interface ACTION {
-        String START_SERVICE = "edu.umass.cs.my-activities-toolkit.action.start-service";
-        String NOTIFY = "edu.umass.cs.my-activities-toolkit.action.notify";
-        String STOP_SERVICE = "edu.umass.cs.my-activities-toolkit.action.stop-service";
+        String START_SERVICE = "edu.umass.cs.bluedroid.action.start-service";
+        String NOTIFY = "edu.umass.cs.bluedroid.action.notify";
+        String STOP_SERVICE = "edu.umass.cs.bluedroid.action.stop-service";
+        String MINIMIZE_VIDEO = "edu.umass.cs.bluedroid.action.minimize-video";
+        String MAXIMIZE_VIDEO = "edu.umass.cs.bluedroid.action.maximize-video";
     }
 
     public interface NOTIFICATION_ID {
         /** Identifies the service to ensure that we have one single instance in the foreground */
-        int FOREGROUND_SERVICE = 101;
-    }
-
-    //TODO: Should be in values.xml
-    /** String constants such as notifications, prompts and titles that are displayed to the user */
-    public interface STRINGS {
-        String START_MESSAGE = "Accelerometer Started";
-        String STOP_MESSAGE = "Accelerometer Stopped:\nData in Downloads/motion-data/ACCEL.csv";
-        String TITLE = "My Activities Toolkit";
-        String NOTIFICATION_MESSAGE = "Collecting sensor data...";
-        String DATA_SUCCESSFULLY_DELETED = "Data successfully deleted.";
-        String DELETE_DATA_CONFIRMATION_PROMPT = "Are you sure you want to delete the gestures data?";
-        String DELETE_DATA_POSITIVE_MSG = "Yes, Delete Data";
-        String DELETE_DATA_NEGATIVE_MSG = "No, I mis-clicked";
+        int SENSOR_SERVICE = 101;
+        int VIDEO_SERVICE = 102;
     }
 
     public interface PREFERENCES {
-        interface SAMPLING_RATE {
-            interface ACCELEROMETER {
-                String KEY = "accelerometer-sampling-rate";
-                int DEFAULT = 60;
-            }
-            interface RSSI {
-                String KEY = "rssi-sampling-rate";
-                int DEFAULT = 60;
-            }
-        }
         interface FILE_NAME {
             interface ACCELEROMETER {
                 String KEY = "accelerometer-file-name";
                 String DEFAULT = "accelerometer";
             }
+
             interface RSSI {
                 String KEY = "rssi";
                 String DEFAULT = "";
             }
         }
+
         interface SAVE_DIRECTORY {
-            String KEY = "save-directory";
             String DEFAULT_DIRECTORY_NAME = "bluedroid";
             String DEFAULT = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), DEFAULT_DIRECTORY_NAME).getAbsolutePath();
         }
-        interface LED_NOTIFICATION{
-            String KEY = "use-led-while-running";
-            boolean DEFAULT = false;
-        }
-        interface AVAILABLE_SENSORS {
-            interface VIDEO {
-                String KEY = "is-video-on";
-                boolean DEFAULT = false;
-            }
-            interface BEAN_ACCELEROMETER {
-                String KEY = "is-bean-accelerometer-on";
-                boolean DEFAULT = true;
-            }
-            interface BEAN_RSSI {
-                String KEY = "is-bean-rssi-on";
-                boolean DEFAULT = true;
-            }
-            interface BAND_ACCELEROMETER {
-                String KEY = "is-band-accelerometer-on";
-                boolean DEFAULT = true;
-            }
-            interface BAND_GYROSCOPE {
-                String KEY = "is-band-gyroscope-on";
-                boolean DEFAULT = true;
-            }
-        }
-    }
-
-    /** Keys to identify key-value data sent to/from the sensor service */
-    public interface KEYS {
-        String ACTIVITIES = "activity";
-    }
-
-    /** Error/warning messages displayed to the user */
-    public interface ERROR_MESSAGES {
-        String ERROR_NO_ACCELEROMETER = "ERROR: No accelerometer available...";
-        String ERROR_NO_SENSOR_MANAGER = "ERROR: Could not retrieve sensor manager...";
-        String WARNING_SENSOR_NOT_SUPPORTED = "WARNING: Sensor not supported!";
-        String WARNING_DATA_NOT_DELETED = "WARNING: Directory may not have been deleted!";
     }
 
     public interface KEY {
-        String STATUS = "edu.umass.cs.mygestures.key.status";
-        String ACCELEROMETER_READING = "edu.umass.cs.mygestures.key.accelerometer-reading";
-        String BATTERY_LEVEL = "edu.umass.cs.mygestures.key.battery-level";
+        String STATUS = "edu.umass.cs.bluedroid.key.status";
+        String ACCELEROMETER_READING = "edu.umass.cs.bluedroid.key.accelerometer-reading";
+        String BATTERY_LEVEL = "edu.umass.cs.bluedroid.key.battery-level";
+        String SURFACE_WIDTH = "edu.umass.cs.bluedroid.key.surface-width";
+        String SURFACE_HEIGHT = "edu.umass.cs.bluedroid.key.surface-height";
+        String SURFACE_X = "edu.umass.cs.bluedroid.key.surface-x";
+        String SURFACE_Y = "edu.umass.cs.bluedroid.key.surface-y";
     }
 
     public interface MESSAGE {
@@ -123,10 +69,5 @@ class Constants {
         int STATUS = 4;
         int ACCELEROMETER_READING = 5;
         int BATTERY_LEVEL = 6;
-    }
-
-    /** Timestamp-relevant constants */
-    public interface TIMESTAMPS {
-        long NANOSECONDS_PER_MILLISECOND = 1000000;
     }
 }
