@@ -2,6 +2,8 @@
   <dictionary name="snoran">
     <words>
       <w>arduino</w>
+      <w>bluedroid</w>
+      <w>questionability</w>
       <w>rssi</w>
     </words>
   </dictionary>
