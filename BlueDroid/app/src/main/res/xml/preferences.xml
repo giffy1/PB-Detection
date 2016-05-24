@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ListPreference
+        android:key="@string/pref_accelerometer_sampling_rate_key"
+        android:title="@string/pref_accelerometer_sampling_rate_title"
+        android:summary="@string/pref_accelerometer_sampling_rate_desc"
+        android:dialogTitle="@string/pref_accelerometer_sampling_rate_title"
+        android:entries="@array/pref_sampling_rate_options"
+        android:entryValues="@array/pref_sampling_rate_options"
+        android:defaultValue="@string/pref_accelerometer_sampling_rate_default" />
+
+    <ListPreference
+        android:key="@string/pref_rssi_sampling_rate_key"
+        android:title="@string/pref_rssi_sampling_rate_title"
+        android:summary="@string/pref_rssi_sampling_rate_desc"
+        android:dialogTitle="@string/pref_rssi_sampling_rate_title"
+        android:entries="@array/pref_sampling_rate_options"
+        android:entryValues="@array/pref_sampling_rate_options"
+        android:defaultValue="@string/pref_rssi_sampling_rate_default" />
+
+    <CheckBoxPreference
+        android:key="@string/pref_accelerometer_key"
+        android:title="@string/pref_accelerometer_title"
+        android:summary="@string/pref_accelerometer_desc"
+        android:defaultValue="@bool/pref_accelerometer_default" />
+
+    <CheckBoxPreference
+        android:key="@string/pref_rssi_key"
+        android:title="@string/pref_rssi_title"
+        android:summary="@string/pref_rssi_desc"
+        android:defaultValue="@bool/pref_rssi_default" />
+
+    <CheckBoxPreference
+        android:key="@string/pref_led_key"
+        android:title="@string/pref_led_title"
+        android:summary="@string/pref_led_desc"
+        android:defaultValue="@bool/pref_led_default" />
+
+    <Preference
+        android:title="@string/pref_directory_title"
+        android:key="@string/pref_directory_key" />
+
+    <PreferenceScreen
+        android:title="@string/pref_group_video_title"
+        android:key="@string/pref_group_video_key">
+
+        <CheckBoxPreference
+            android:key="@string/pref_video_key"
+            android:title="@string/pref_video_title"
+            android:summary="@string/pref_video_desc"
+            android:defaultValue="@bool/pref_video_default" />
+
+        <CheckBoxPreference
+            android:key="@string/pref_audio_key"
+            android:title="@string/pref_audio_title"
+            android:summary="@string/pref_audio_desc"
+            android:defaultValue="@bool/pref_audio_default" />
+
+        <!--<ListPreference-->
+            <!--android:key="@string/pref_rssi_sampling_rate_key"-->
+            <!--android:title="@string/pref_rssi_sampling_rate_title"-->
+            <!--android:summary="@string/pref_rssi_sampling_rate_desc"-->
+            <!--android:dialogTitle="@string/pref_rssi_sampling_rate_title"-->
+            <!--android:entries="@array/pref_sampling_rate_options"-->
+            <!--android:entryValues="@array/pref_sampling_rate_options"-->
+            <!--android:defaultValue="@string/pref_rssi_sampling_rate_default" />-->
+
+    </PreferenceScreen>
+
+</PreferenceScreen>
