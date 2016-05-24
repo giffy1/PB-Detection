@@ -65,9 +65,6 @@ public class SensorService extends Service {
     /** List of bound clients/activities to this service */
     private ArrayList<Messenger> mClients = new ArrayList<>();
 
-    /** indicates whether the sensor service is running or not */
-    private static boolean isRunning = false;
-
     /** Used to access user preferences shared across different application components **/
     SharedPreferences preferences;
 
@@ -190,10 +187,6 @@ public class SensorService extends Service {
         return mMessenger.getBinder();
     }
 
-    protected static boolean isRunning(){
-        return isRunning;
-    }
-
     /** list of available LightBlue Bean sensors **/
     private final List<Bean> beans = new ArrayList<>();
 
@@ -210,17 +203,17 @@ public class SensorService extends Service {
      */
     private void loadSharedPreferences(){
         preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        accelerometerSamplingRate = preferences.getInt(Constants.PREFERENCES.SAMPLING_RATE.ACCELEROMETER.KEY,
-                Constants.PREFERENCES.SAMPLING_RATE.ACCELEROMETER.DEFAULT);
-        rssiSamplingRate = preferences.getInt(Constants.PREFERENCES.SAMPLING_RATE.RSSI.KEY,
-                Constants.PREFERENCES.SAMPLING_RATE.RSSI.DEFAULT);
+        accelerometerSamplingRate = Integer.parseInt(preferences.getString(getString(R.string.pref_accelerometer_sampling_rate_key),
+                getString(R.string.pref_accelerometer_sampling_rate_default)));
+        rssiSamplingRate = Integer.parseInt(preferences.getString(getString(R.string.pref_rssi_sampling_rate_key),
+                getString(R.string.pref_rssi_sampling_rate_default)));
 
         String accelerometerFileName = preferences.getString(Constants.PREFERENCES.FILE_NAME.ACCELEROMETER.KEY,
                 Constants.PREFERENCES.FILE_NAME.ACCELEROMETER.DEFAULT);
         String rssiFileName = preferences.getString(Constants.PREFERENCES.FILE_NAME.RSSI.KEY,
                 Constants.PREFERENCES.FILE_NAME.RSSI.DEFAULT);
 
-        String path = preferences.getString(Constants.PREFERENCES.SAVE_DIRECTORY.KEY,
+        String path = preferences.getString(getString(R.string.pref_directory_key),
                 Constants.PREFERENCES.SAVE_DIRECTORY.DEFAULT);
 
         assert path != null;
@@ -229,30 +222,32 @@ public class SensorService extends Service {
         accelerometerFileWriter = FileUtil.getFileWriter(accelerometerFileName, directory);
         rssiFileWriter = FileUtil.getFileWriter(rssiFileName, directory);
 
-        turnOnLedWhileRunning = preferences.getBoolean(Constants.PREFERENCES.LED_NOTIFICATION.KEY,
-                Constants.PREFERENCES.LED_NOTIFICATION.DEFAULT);
+        turnOnLedWhileRunning = preferences.getBoolean(getString(R.string.pref_led_key),
+                getResources().getBoolean(R.bool.pref_led_default));
 
-        enableAccelerometer = preferences.getBoolean(Constants.PREFERENCES.AVAILABLE_SENSORS.BEAN_ACCELEROMETER.KEY,
-                Constants.PREFERENCES.AVAILABLE_SENSORS.BEAN_ACCELEROMETER.DEFAULT);
+        enableAccelerometer = preferences.getBoolean(getString(R.string.pref_accelerometer_key),
+                getResources().getBoolean(R.bool.pref_accelerometer_default));
 
-        enableRSSI = preferences.getBoolean(Constants.PREFERENCES.AVAILABLE_SENSORS.BEAN_RSSI.KEY,
-                Constants.PREFERENCES.AVAILABLE_SENSORS.BEAN_RSSI.DEFAULT);
+        enableRSSI = preferences.getBoolean(getString(R.string.pref_rssi_key),
+                getResources().getBoolean(R.bool.pref_rssi_default));
     }
 
     //Called when passing in an intent via startService(), i.e. start/stop command
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent.getAction().equals(Constants.ACTION.START_SERVICE)) {
+        if (intent == null){
+            stopForeground(true);
+            stopSelf();
+        } else if (intent.getAction().equals(Constants.ACTION.START_SERVICE)) {
             loadSharedPreferences();
             registerSensors();
         } else if (intent.getAction().equals(Constants.ACTION.NOTIFY)) {
-
-            isRunning = true;
 
             // create option to stop the service from the notification
             Intent stopIntent = new Intent(this, SensorService.class);
             stopIntent.setAction(Constants.ACTION.STOP_SERVICE);
             PendingIntent pendingIntent = PendingIntent.getService(this, 0, stopIntent, 0);
+            PendingIntent contentIntent = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), 0);
 
             Bitmap icon = BitmapFactory.decodeResource(getResources(), R.drawable.lightblue_bean);
 
@@ -266,12 +261,12 @@ public class SensorService extends Service {
                     .setOngoing(true)
                     .setVibrate(new long[]{0, 50, 150, 200})
                     .setPriority(Notification.PRIORITY_MAX)
-                    .addAction(android.R.drawable.ic_delete, getString(R.string.stop_service), pendingIntent).build();
+                    .addAction(android.R.drawable.ic_delete, getString(R.string.stop_service), pendingIntent)
+                    .setContentIntent(contentIntent).build();
 
-            startForeground(Constants.NOTIFICATION_ID.FOREGROUND_SERVICE, notification);
+            startForeground(Constants.NOTIFICATION_ID.SENSOR_SERVICE, notification);
 
         } else if (intent.getAction().equals(Constants.ACTION.STOP_SERVICE)) {
-            isRunning = false;
 
             turnOffLed();
 
@@ -437,8 +432,7 @@ public class SensorService extends Service {
                     }
                 };
 
-                // Assuming you are in an Activity, use 'this' for the context
-                sendStatusToClients("Connecting to bean" + bean.getDevice().getName() + "...");
+                sendStatusToClients(String.format("Connecting to bean %s...", bean.getDevice().getName()));
                 bean.connect(SensorService.this, beanListener);
             }
 
@@ -470,6 +464,9 @@ public class SensorService extends Service {
         }
     }
 
+    /**
+     * Turns off LEDs of each connected LightBlue Bean sensor.
+     */
     public void turnOffLed(){
         for (Bean bean : beans){
             if (bean.isConnected())
