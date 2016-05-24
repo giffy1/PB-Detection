@@ -1,0 +1,55 @@
+<resources>
+    <string name="pref_video_key">enable-video</string>
+    <string name="pref_video_title">Enable Video</string>
+    <string name="pref_video_desc">If checked, video will be recorded during data collection.</string>
+    <bool name="pref_video_default">true</bool>
+
+    <string name="pref_audio_key">enable-audio</string>
+    <string name="pref_audio_title">Enable Audio</string>
+    <string name="pref_audio_desc">If checked, audio will be recorded along with video.</string>
+    <bool name="pref_audio_default">false</bool>
+
+    <string name="pref_rssi_sampling_rate_key">rssi-sampling-rate</string>
+    <string name="pref_rssi_sampling_rate_title">RSSI Sampling Rate</string>
+    <string name="pref_rssi_sampling_rate_desc">Rate at which Bean-to-Phone signal strength is sampled: %s</string>
+    <string name="pref_rssi_sampling_rate_default">60</string>
+
+    <string name="pref_accelerometer_sampling_rate_key">accelerometer-sampling-rate</string>
+    <string name="pref_accelerometer_sampling_rate_title">Accelerometer Sampling Rate</string>
+    <string name="pref_accelerometer_sampling_rate_desc">Rate at which Bean accelerometer is sampled: %s</string>
+    <string name="pref_accelerometer_sampling_rate_default">60</string>
+
+    <string-array name="pref_sampling_rate_options">
+        <item>15</item>
+        <item>25</item>
+        <item>50</item>
+        <item>60</item>
+        <item>90</item>
+        <item>100</item>
+        <item>120</item>
+        <item>150</item>
+        <item>200</item>
+    </string-array>
+
+    <string name="pref_directory_key">directory</string>
+    <string name="pref_directory_title">Select Directory</string>
+
+    <string name="pref_led_key">bean-led-while-running</string>
+    <string name="pref_led_title">Enable Bean LED</string>
+    <string name="pref_led_desc">If checked, the Bean LED will be turned on during data collection. Note this increases battery consumption on the Bean.</string>
+    <bool name="pref_led_default">true</bool>
+
+    <string name="pref_accelerometer_key">bean-accelerometer</string>
+    <string name="pref_accelerometer_title">Enable Bean Accelerometer</string>
+    <string name="pref_accelerometer_desc">If checked, Bean accelerometer data will be sampled.</string>
+    <bool name="pref_accelerometer_default">true</bool>
+
+    <string name="pref_rssi_key">bean-rssi</string>
+    <string name="pref_rssi_title">Enable Bean-to-Phone RSSI</string>
+    <string name="pref_rssi_desc">If checked, Bean-to-Phone signal strength data will be sampled.</string>
+    <bool name="pref_rssi_default">true</bool>
+
+    <string name="pref_group_video_key">video-settings</string>
+    <string name="pref_group_video_title">Video Settings</string>
+
+</resources>
