@@ -1,6 +1,7 @@
 package edu.umass.cs.camera;
 
 import android.Manifest;
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
@@ -11,9 +12,9 @@ import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.PixelFormat;
 import android.graphics.drawable.BitmapDrawable;
-import android.media.MediaRecorder;
-import android.os.AsyncTask;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -21,95 +22,71 @@ import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
 import android.preference.PreferenceManager;
+import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.Button;
-import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
 
-import com.microsoft.band.BandClient;
-import com.microsoft.band.BandClientManager;
-import com.microsoft.band.BandException;
-import com.microsoft.band.BandInfo;
-import com.microsoft.band.BandPendingResult;
-import com.microsoft.band.ConnectionState;
-import com.microsoft.band.UserConsent;
-import com.microsoft.band.sensors.BandAccelerometerEvent;
-import com.microsoft.band.sensors.BandAccelerometerEventListener;
-import com.microsoft.band.sensors.HeartRateConsentListener;
-import com.microsoft.band.sensors.SampleRate;
-
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Main UI and entry point for the data collection application. The UI is responsible for handling
  * the user interactions with the available services, such as starting the sensor service connection
- * with available Wearables and LightBlue Bean sensors. It also handles all necessary permission
- * requests that are required for the application services to run properly.
+ * with available Wearables and LightBlue Bean sensors, as well as the video recording service.
+ * It also handles all necessary permission requests that are required for all application components
+ * to run properly.
  *
  * @author snoran
  * @affiliation University of Massachusetts Amherst
  *
  * @see SensorService
+ * @see RecordingService
  * @see Activity
  * @see android.Manifest.permission
  */
-public class MainActivity extends AppCompatActivity implements SurfaceHolder.Callback {
+public class MainActivity extends AppCompatActivity {
 
     /** Used during debugging to identify logs by class */
     public static final String TAG = MainActivity.class.getName();
 
-    /** recording object for capturing videos **/
-    private MediaRecorder recorder;
-
     /** video display surface - mustn't be visible **/
-    private SurfaceHolder holder;
-
-    /** whether currently recording video **/
-    private boolean recording = false;
+    private SurfaceHolder mHolder;
 
     /** whether the application should record video during data collection **/
-    private boolean record_video = false;
+    private boolean record_video;
 
-    /** Permission identifier for the set of required permissions **/
-    private static final int VIDEO_BLE_PERMISSION_REQUEST = 1;
+    /** whether video recording should include audio **/
+    private boolean record_audio;
 
-    /** All required permissions necessary for the application services to run properly **/
-    private static final String[] VIDEO_BLE_PERMISSIONS = {
-            Manifest.permission.CAMERA,
-            Manifest.permission.BLUETOOTH,
-            Manifest.permission.BLUETOOTH_ADMIN,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE
-    };
+    /** Permission request identifier **/
+    private static final int PERMISSION_REQUEST = 1;
 
-    private final String BAND_TAG = "BAND";
-
-    private BandClient bandClient;
+    /** code to post/handler request for permission */
+    public final static int WINDOW_OVERLAY_REQUEST = 2;
 
     /** Used to display status messages **/
     private TextView tvStatus, tvSensor;
 
-    private Button attach;
+    public static SurfaceView mSurfaceView;
 
-    private Boolean attached;
+    public static ViewGroup mSurfaceLayout;
 
-    private BandPendingResult<ConnectionState> pendingResult;
-
-    private ArrayList<BandAccelerometerEvent> accelReadings;
+    public static int actionBarHeight;
 
     private Bitmap batteryLevelBitmap;
 
@@ -199,17 +176,6 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
     };
 
     /**
-     * Binds this activity to the service if the service is already running
-     */
-    private void bindToServiceIfIsRunning() {
-        //If the service is running when the activity starts, we want to automatically bind to it.
-        if (SensorService.isRunning()) {
-            doBindService();//
-            updateStatus("Request to bind service");
-        }
-    }
-
-    /**
      * Binds the activity to the background service
      */
     void doBindService() {
@@ -241,11 +207,13 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
     @Override
     protected void onResume() {
         super.onResume();
+        maximizeVideo();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        minimizeVideo();
     }
 
 
@@ -257,7 +225,7 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
 
     /**
      * Check the specified permissions
-     * @param permissions list of Strings indicating permissinos
+     * @param permissions list of Strings indicating permissions
      * @return true if ALL permissions are granted, false otherwise
      */
     private boolean hasPermissionsGranted(String[] permissions) {
@@ -267,6 +235,69 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
             }
         }
         return true;
+    }
+
+    @TargetApi(23)
+    public void checkDrawOverlayPermission() {
+        /** check if we already  have permission to draw over other apps */
+        if (record_video && !Settings.canDrawOverlays(getApplicationContext())) {
+            /** if not construct intent to request permission */
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName()));
+            /** request permission via start activity for result */
+            startActivityForResult(intent, WINDOW_OVERLAY_REQUEST);
+        }else{
+            startSensorService();
+        }
+    }
+
+    @TargetApi(23)
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode,  Intent data) {
+        /** check if received result code
+         is equal our requested code for draw permission  */
+        if (requestCode == WINDOW_OVERLAY_REQUEST) {
+            /** if so check once again if we have permission */
+            if (Settings.canDrawOverlays(this)) {
+                startSensorService();
+            }
+        }
+    }
+
+    /**
+     * Request required permissions, depending on the application settings. Permissions
+     * {@link android.Manifest.permission#WRITE_EXTERNAL_STORAGE WRITE_EXTERNAL_STORAGE},
+     * {@link android.Manifest.permission#BLUETOOTH BLUETOOTH},
+     * {@link android.Manifest.permission#BLUETOOTH_ADMIN BLUETOOTH_ADMIN},
+     * {@link android.Manifest.permission#ACCESS_COARSE_LOCATION ACCESS_COARSE_LOCATION}
+     * are always required, because the data collection from the Bean cannot work without
+     * these permissions. If video recording is enabled, then additionally the
+     * {@link android.Manifest.permission#CAMERA CAMERA} permission is required. For audio
+     * recording, which is disabled by default, the
+     * {@link android.Manifest.permission#RECORD_AUDIO RECORD_AUDIO} permission is required.
+     */
+    private void requestPermissions(){
+        List<String> permissionGroup = new ArrayList<>(Arrays.asList(new String[]{
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                Manifest.permission.BLUETOOTH,
+                Manifest.permission.BLUETOOTH_ADMIN,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+        }));
+
+        if (record_video) {
+            permissionGroup.add(Manifest.permission.CAMERA);
+            if (record_audio){
+                permissionGroup.add(Manifest.permission.RECORD_AUDIO);
+            }
+        }
+
+        String[] permissions = permissionGroup.toArray(new String[permissionGroup.size()]);
+
+        if (!hasPermissionsGranted(permissions)) {
+            ActivityCompat.requestPermissions(MainActivity.this, permissions, PERMISSION_REQUEST);
+            return;
+        }
+        checkDrawOverlayPermission();
     }
 
     /**
@@ -284,8 +315,8 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
     }
 
     /**
-     * display the accelerometer readings in the main UI
-     * @param percentage length-3 array of xyz accelerometer readings
+     * display the battery level in the UI
+     * @param percentage battery level in the range of [0,100]
      */
     private void updateBatteryLevel(final int percentage){
         if (batteryLevelBitmap == null)
@@ -300,6 +331,7 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
 
         Resources res = getResources();
         BitmapDrawable icon = new BitmapDrawable(res,batteryLevelSingleBitmap);
+        //noinspection ConstantConditions
         getSupportActionBar().setDisplayShowHomeEnabled(true);
         getSupportActionBar().setIcon(icon);
         getSupportActionBar().setTitle("");
@@ -324,7 +356,7 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
         switch (requestCode) {
-            case VIDEO_BLE_PERMISSION_REQUEST: {
+            case PERMISSION_REQUEST: {
                 //If the request is cancelled, the result array is empty.
                 if (grantResults.length == 0) {
                     updateStatus("Permission Request Cancelled.");
@@ -332,21 +364,36 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
                 }
                 for (int i = 0; i < permissions.length; i++){
                     if (grantResults[i] != PackageManager.PERMISSION_GRANTED){
-                        updateStatus("Permission Denied for " + permissions[i]);
-                        return;
+                        switch (permissions[i]) {
+                            case Manifest.permission.CAMERA:
+                                record_video = false;
+                                updateStatus("Permission Denied : Continuing with video disabled.");
+                                break;
+                            case Manifest.permission.RECORD_AUDIO:
+                                record_audio = false;
+                                updateStatus("Permission Denied : Continuing with audio disabled.");
+                                break;
+                            default:
+                                //required permission not granted, abort
+                                updateStatus(permissions[i] + " Permission Denied - cannot continue");
+                                return;
+                        }
                     }
                 }
-                // all permissions granted:
-                updateStatus("Permission Granted.");
-                startSensorService();
+                checkDrawOverlayPermission();
             }
         }
     }
 
+    /**
+     * Loads shared user preferences, e.g. whether video/audio is enabled
+     */
     private void loadPreferences(){
         preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        record_video = preferences.getBoolean(Constants.PREFERENCES.AVAILABLE_SENSORS.VIDEO.KEY,
-                Constants.PREFERENCES.AVAILABLE_SENSORS.VIDEO.DEFAULT);
+        record_video = preferences.getBoolean(getString(R.string.pref_video_key),
+                getResources().getBoolean(R.bool.pref_video_default));
+        record_audio = preferences.getBoolean(getString(R.string.pref_audio_key),
+                getResources().getBoolean(R.bool.pref_audio_default));
     }
 
     @Override
@@ -362,7 +409,7 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         tvSensor = (TextView) findViewById(R.id.sensor_readings);
         tvSensor.setText(String.format(getString(R.string.initial_sensor_readings), 0.0, 0.0, 0.0));
 
-        bindToServiceIfIsRunning();
+        doBindService();
 
         Button startButton = (Button)findViewById(R.id.start_button);
         startButton.setOnClickListener(new View.OnClickListener() {
@@ -372,11 +419,8 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
                     doBindService();
                 }
                 if (mIsBound) {
-                    if (!hasPermissionsGranted(VIDEO_BLE_PERMISSIONS) || !hasPermissionsGranted(VIDEO_BLE_PERMISSIONS)) {
-                        ActivityCompat.requestPermissions(MainActivity.this, VIDEO_BLE_PERMISSIONS, VIDEO_BLE_PERMISSION_REQUEST);
-                        return;
-                    }
-                    startSensorService();
+                    loadPreferences();
+                    requestPermissions();
                 }
             }
         });
@@ -389,27 +433,37 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
                     doBindService();
                 }
                 if (mIsBound) {
-                    //create an intent for stopping sensor service: We will pass this to the sensor service
-                    Intent stopServiceIntent = new Intent(MainActivity.this, SensorService.class);
-
-                    //identify the intent by the STOP_SERVICE action, defined in the Constants class
-                    stopServiceIntent.setAction(Constants.ACTION.STOP_SERVICE);
-
-                    //send intent to the sensor service
-                    startService(stopServiceIntent);
-
-                    stopVideoService();
+                    stopSensorService();
+                    stopRecordingService();
                 }
             }
         });
 
-        recorder = new MediaRecorder();
-        initRecorder();
-
-        SurfaceView cameraView = (SurfaceView) findViewById(R.id.surface_camera);
-        holder = cameraView.getHolder();
-        holder.addCallback(this);
-        holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS); //not needed since API 11
+        mSurfaceView = (SurfaceView) findViewById(R.id.surface_camera); //new SurfaceView(getApplicationContext());
+        // Calculate ActionBar height
+        TypedValue tv = new TypedValue();
+        if (getTheme().resolveAttribute(android.R.attr.actionBarSize, tv, true))
+        {
+            actionBarHeight = TypedValue.complexToDimensionPixelSize(tv.data,getResources().getDisplayMetrics());
+        }
+//        //mSurfaceLayout = (ViewGroup) findViewById(R.id.camera_layout);
+//
+//        WindowManager winMan = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+//        WindowManager.LayoutParams params = new WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT,
+//                WindowManager.LayoutParams.WRAP_CONTENT,
+//                WindowManager.LayoutParams.TYPE_SYSTEM_OVERLAY,
+//                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+//                PixelFormat.TRANSLUCENT);
+//
+//        params.x = 0;
+//        params.y = 0;
+//
+//        //mSurfaceLayout.removeView(mSurfaceView);
+//        winMan.addView(mSurfaceView, params);
+//        mSurfaceView.setZOrderOnTop(true);
+//        // Hack to show the video on almost any device (show a 1x1 pixel preview)
+//        mSurfaceView.getHolder().setFixedSize(500, 500);
+//        mSurfaceView.getHolder().setFormat(PixelFormat.TRANSPARENT);
     }
 
     /**
@@ -417,156 +471,104 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
      */
     private void startSensorService(){
 
-        if(!mIsBound) {
-            doBindService();
-        }
-        if (mIsBound) {
-            Intent startServiceIntent = new Intent(MainActivity.this, SensorService.class);
+        Intent startServiceIntent = new Intent(MainActivity.this, SensorService.class);
 
-            //identify the intent by the START_SERVICE action, defined in the Constants class
-            startServiceIntent.setAction(Constants.ACTION.START_SERVICE);
+        //identify the intent by the START_SERVICE action, defined in the Constants class
+        startServiceIntent.setAction(Constants.ACTION.START_SERVICE);
 
-            //start sensor service
-            startService(startServiceIntent);
-        }
+        //start sensor service
+        startService(startServiceIntent);
+
     }
 
+    /**
+     * Stops the {@link SensorService} via an {@link Intent}
+     */
+    private void stopSensorService(){
+
+        //create an intent for stopping sensor service: We will pass this to the sensor service
+        Intent stopServiceIntent = new Intent(MainActivity.this, SensorService.class);
+
+        //identify the intent by the STOP_SERVICE action, defined in the Constants class
+        stopServiceIntent.setAction(Constants.ACTION.STOP_SERVICE);
+
+        //send intent to the sensor service
+        startService(stopServiceIntent);
+
+    }
+
+    /**
+     * Starts the {@link CameraService} via an {@link Intent}
+     */
+    private void startRecordingService(){
+
+        Intent startServiceIntent = new Intent(MainActivity.this, RecordingService.class);
+
+        //identify the intent by the START_SERVICE action, defined in the Constants class
+        startServiceIntent.setAction(Constants.ACTION.START_SERVICE);
+
+        int[] position = new int[2];
+        mSurfaceView.getLocationInWindow(position);
+        startServiceIntent.putExtra(Constants.KEY.SURFACE_WIDTH, mSurfaceView.getWidth());
+        startServiceIntent.putExtra(Constants.KEY.SURFACE_HEIGHT, mSurfaceView.getHeight());
+        startServiceIntent.putExtra(Constants.KEY.SURFACE_X, position[0]);
+        startServiceIntent.putExtra(Constants.KEY.SURFACE_Y, position[1]);
+
+        //start sensor service
+        startService(startServiceIntent);
+
+    }
+
+    /**
+     * Stops the {@link CameraService} via an {@link Intent}
+     */
+    private void stopRecordingService(){
+
+        //create an intent for stopping sensor service: We will pass this to the sensor service
+        Intent stopServiceIntent = new Intent(MainActivity.this, RecordingService.class);
+
+        //identify the intent by the STOP_SERVICE action, defined in the Constants class
+        stopServiceIntent.setAction(Constants.ACTION.STOP_SERVICE);
+
+        //send intent to the sensor service
+        startService(stopServiceIntent);
+
+    }
+
+    private void minimizeVideo(){
+
+        //create an intent for stopping sensor service: We will pass this to the sensor service
+        Intent minimizeIntent = new Intent(MainActivity.this, RecordingService.class);
+
+        //identify the intent by the STOP_SERVICE action, defined in the Constants class
+        minimizeIntent.setAction(Constants.ACTION.MINIMIZE_VIDEO);
+
+        //send intent to the sensor service
+        startService(minimizeIntent);
+
+    }
+
+    private void maximizeVideo(){
+
+        //create an intent for stopping sensor service: We will pass this to the sensor service
+        Intent maximizeIntent = new Intent(MainActivity.this, RecordingService.class);
+
+        //identify the intent by the STOP_SERVICE action, defined in the Constants class
+        maximizeIntent.setAction(Constants.ACTION.MAXIMIZE_VIDEO);
+
+        //send intent to the sensor service
+        startService(maximizeIntent);
+
+    }
+
+    /**
+     * Called when the {@link SensorService} has started. This should then start the {@link RecordingService}, if enabled.
+     */
     private void onSensorStarted(){
         if (record_video) {
-            recording = true;
-            recorder.start();
+            startRecordingService();
         }
     }
-
-    /**
-     * Stops video recording and re-prepares it for future recordings
-     */
-    private void stopVideoService(){
-        if (recording) {
-            recorder.stop();
-            recording = false;
-            //Toast.makeText(getApplicationContext(), "Recording stopped", Toast.LENGTH_LONG).show();
-
-            // Let's initRecorder so we can record again
-            //initRecorder();
-            //prepareRecorder();
-        }
-    }
-
-    /**
-     * initialize the recorder and set the appropriate recording parameters
-     */
-    private void initRecorder() {
-        //recorder.setAudioSource(MediaRecorder.AudioSource.DEFAULT);
-        recorder.setVideoSource(MediaRecorder.VideoSource.DEFAULT);
-        recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-        //recorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH));
-        String directory = preferences.getString(Constants.PREFERENCES.SAVE_DIRECTORY.KEY,
-                Constants.PREFERENCES.SAVE_DIRECTORY.DEFAULT);
-        File f = new File(directory);
-        if(!f.exists())
-            if (!f.mkdir()){
-                Log.w(TAG, "Failed to create directory! It may already exist");
-            }
-        recorder.setOutputFile(new File(directory, "VIDEO.mp4").getAbsolutePath());
-        recorder.setVideoEncodingBitRate(10000000);
-        recorder.setVideoFrameRate(30);
-        //recorder.setMaxDuration(50000); // 50 seconds
-        //recorder.setMaxFileSize(5000000); // Approximately 5 megabytes
-        recorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
-
-        //recorder.setVideoSize(mVideoSize.getWidth(), mVideoSize.getHeight());
-    }
-
-    public void surfaceCreated(SurfaceHolder holder) {
-        prepareRecorder();
-    }
-
-    public void surfaceChanged(SurfaceHolder holder, int format, int width,
-                               int height) {
-    }
-
-    public void surfaceDestroyed(SurfaceHolder holder) {
-        if (recording) {
-            recorder.stop();
-            recording = false;
-        }
-        recorder.release();
-        finish();
-    }
-
-    private void prepareRecorder() {
-        recorder.setPreviewDisplay(holder.getSurface());
-
-        try {
-            recorder.prepare();
-        } catch (IllegalStateException | IOException e) {
-            e.printStackTrace();
-            finish();
-        }
-    }
-
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-
-        Toast.makeText(getApplicationContext(), requestCode + ", " + resultCode, Toast.LENGTH_LONG).show();
-    }
-
-    public boolean attachBand() {
-        BandInfo[] pairedBands = BandClientManager.getInstance().getPairedBands();
-        bandClient = BandClientManager.getInstance().create(this, pairedBands[0]);
-
-        //TODO: Need to place this in an Async Task
-        new ConnectBandTask().execute();
-        return true;
-    }
-
-    public void readData() {
-        final BandAccelerometerEventListener accelListener = new BandAccelerometerEventListener() {
-            @Override
-            public void onBandAccelerometerChanged(BandAccelerometerEvent bandAccelerometerEvent) {
-                accelReadings.add(bandAccelerometerEvent);
-                Log.v(BAND_TAG, "X: " + bandAccelerometerEvent.getAccelerationX()
-                            + ", Y: " + bandAccelerometerEvent.getAccelerationY()
-                            + ", Z: " + bandAccelerometerEvent.getAccelerationZ());
-            }
-        };
-
-
-        Log.d(BAND_TAG, "Checking consent");
-
-//        try {
-        // register the listener
-        if(bandClient.getSensorManager().getCurrentHeartRateConsent() != UserConsent.GRANTED) {
-            // user hasn’t consented, request consent
-            // the calling class is an Activity and implements HeartRateConsentListener
-            Log.d(BAND_TAG, "Not consented");
-            bandClient.getSensorManager().requestHeartRateConsent(this, new HeartRateConsentListener() {
-                @Override
-                public void userAccepted(boolean b) {
-                    registerAccelListener(accelListener);
-                }
-            });
-        }
-        else {
-            Log.d(BAND_TAG, "Consented");
-            registerAccelListener(accelListener);
-        }
-
-
-    }
-
-    public void registerAccelListener(BandAccelerometerEventListener listener)  {
-
-        try {
-            bandClient.getSensorManager().registerAccelerometerEventListener(listener, SampleRate.MS32);
-        }
-        catch (BandException e) {
-            Log.d(BAND_TAG, "Heart rate band exception: " + e);
-        }
-
-    }
-
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -584,29 +586,13 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
 
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_settings) {
+            Intent openSettings = new Intent(MainActivity.this, SettingsActivity.class);
+            //myIntent.putExtra("key", value); //Optional parameters
+            startActivity(openSettings);
             return true;
         }
 
         return super.onOptionsItemSelected(item);
-    }
-
-    private class ConnectBandTask extends AsyncTask<Void, Void, Void> {
-        protected Void doInBackground(Void... nothing) {
-            pendingResult = bandClient.connect();
-            try {
-                ConnectionState state = pendingResult.await();
-                if(state == ConnectionState.CONNECTED) {
-                    // do work on success
-                    Log.d(BAND_TAG, "Success");
-                } else {
-                    // do work on failure
-                    Log.d(BAND_TAG, "Unsuccessful");
-                }
-            } catch(InterruptedException | BandException e) {
-                // handle InterruptedException
-            }
-            return null;
-        }
     }
 
 }
