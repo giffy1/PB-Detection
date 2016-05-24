@@ -1,6 +1,5 @@
 package edu.umass.cs.camera;
 
-import android.os.Environment;
 import android.util.Log;
 
 import java.io.BufferedWriter;
@@ -17,24 +16,8 @@ class FileUtil {
     /** tag used for debugging purposes */
     private static final String TAG = FileUtil.class.getName();
 
-    /** default name of the application's directory */
-    private static final String DEFAULT_DIRECTORY = "motion-data";
-
     /** CSV extension */
     private static final String CSV_EXTENSION = ".csv";
-
-    /**
-     * Returns a root directory where the logging takes place
-     * @return File of the root directory
-     */
-    private static File getStorageLocation(){
-        File root = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), DEFAULT_DIRECTORY);
-        if(!root.exists())
-            if (!root.mkdir()){
-                Log.w(TAG, "Failed to create directory! It may already exist");
-            }
-        return root;
-    }
 
     /**
      * Returns a file writer for a device
@@ -42,7 +25,7 @@ class FileUtil {
      * @return the file writer for the particular filename
      */
     public static BufferedWriter getFileWriter(String filename, File directory){
-        String fullFileName = filename+CSV_EXTENSION;
+        String fullFileName = filename + String.valueOf(System.currentTimeMillis()) + CSV_EXTENSION;
 
         BufferedWriter out = null;
         try{
