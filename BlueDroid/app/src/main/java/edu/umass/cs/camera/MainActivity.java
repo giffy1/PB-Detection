@@ -498,7 +498,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Starts the {@link CameraService} via an {@link Intent}
+     * Starts the {@link RecordingService} via an {@link Intent}
      */
     private void startRecordingService(){
 
@@ -520,7 +520,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Stops the {@link CameraService} via an {@link Intent}
+     * Stops the {@link RecordingService} via an {@link Intent}
      */
     private void stopRecordingService(){
 
